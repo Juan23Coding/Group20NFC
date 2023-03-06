@@ -30,34 +30,37 @@ public class MainActivity extends AppCompatActivity {
     PendingIntent pendingIntent;
     final static String TAG = "nfc_test";
 
+
     @RequiresApi(api = Build.VERSION_CODES.M)
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
-        TextView text = (TextView) findViewById(R.id.welcome);
         nfcAdapter = NfcAdapter.getDefaultAdapter(this);
+        TextView text = (TextView) findViewById(R.id.welcome);
         if (nfcAdapter == null) {
             Toast.makeText(this, "Not NFC Compatible", Toast.LENGTH_SHORT).show();
             finish();
             return;
         }
-        pendingIntent = PendingIntent.getActivity(this, 0, new Intent(this, this.getClass()).addFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP), 0
-        );
+        pendingIntent = PendingIntent.getActivity(this, 0, new Intent(this, this.getClass()).addFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP), PendingIntent.FLAG_IMMUTABLE);
     }
 
     @Override
     protected void onResume() {
         super.onResume();
-        assert nfcAdapter != null;
-        //nfcAdapter.enableForegroundDispatch(context,pendingIntent,
-        //                                    intentFilterArray,
-        //                                    techListsArray)
-        nfcAdapter.enableForegroundDispatch(this, pendingIntent, null, null);
+        if (nfcAdapter != null) {
+            if (!nfcAdapter.isEnabled()) {
+                showWirelessSettings();
+            }
+            nfcAdapter.enableForegroundDispatch(this, pendingIntent, null, null);
+        }
     }
 
     private void showWirelessSettings() {
+        TextView text = (TextView) findViewById(R.id.welcome);
         Toast.makeText(this, "Enable NFC", Toast.LENGTH_SHORT).show();
+        text.setText("Turn on NFC");
         Intent intent = new Intent(Settings.ACTION_WIRELESS_SETTINGS);
         startActivity(intent);
     }
@@ -84,7 +87,7 @@ public class MainActivity extends AppCompatActivity {
     private void resolveIntent(Intent intent) {
         String action = intent.getAction();
         if (NfcAdapter.ACTION_TAG_DISCOVERED.equals(action) || NfcAdapter.ACTION_TECH_DISCOVERED.equals(action) || NfcAdapter.ACTION_NDEF_DISCOVERED.equals(action)) {
-            Parcelable[]rawMsgs = intent.getParcelableArrayExtra(NfcAdapter.EXTRA_NDEF_MESSAGES);
+            Parcelable[] rawMsgs = intent.getParcelableArrayExtra(NfcAdapter.EXTRA_NDEF_MESSAGES);
             NdefMessage[] msgs;
 
             if (rawMsgs != null) {
@@ -99,17 +102,16 @@ public class MainActivity extends AppCompatActivity {
                 Tag tag = (Tag) intent.getParcelableExtra(NfcAdapter.EXTRA_TAG);
                 byte[] payload = detectTagData(tag).getBytes();
                 NdefRecord record = new NdefRecord(NdefRecord.TNF_UNKNOWN, empty, id, payload);
-                NdefMessage msg = new NdefMessage(new NdefRecord[] {record});
-                msgs = new NdefMessage[] {msg};
+                NdefMessage msg = new NdefMessage(new NdefRecord[]{record});
+                msgs = new NdefMessage[]{msg};
             }
             displayMsgs(msgs);
         }
     }
 
     private void displayMsgs(NdefMessage[] msgs) {
-        if (msgs == null || msgs.length == 0) {
+        if (msgs == null || msgs.length == 0)
             return;
-        }
 
         StringBuilder builder = new StringBuilder();
         List<parsedNdefRecord> records = NdefMessageParser.parse(msgs[0]);
@@ -118,11 +120,10 @@ public class MainActivity extends AppCompatActivity {
         for (int i = 0; i < size; i++) {
             parsedNdefRecord record = records.get(i);
             String str = record.str();
-            builder.append(str).append('\n');
+            builder.append(str).append("\n");
         }
         TextView text = (TextView) findViewById(R.id.welcome);
-        text.setText("NFC Details: "+ builder);
-        Log.d("NFC Details: ", builder.toString());
+        text.setText(builder.toString());
     }
 
     private String detectTagData(Tag tag) {
@@ -188,6 +189,7 @@ public class MainActivity extends AppCompatActivity {
                 }
                 sb.append("Mifare Ultralight type: ");
                 sb.append(type);
+                Log.d("Good Read", "NFC Read");
             }
         }
         return sb.toString();
@@ -202,7 +204,7 @@ public class MainActivity extends AppCompatActivity {
                 sb.append("0");
             sb.append(Integer.toHexString(b));
             if (i > 0) {
-                sb.append(" ");
+                sb.append("");
             }
         }
         return sb.toString();
@@ -212,7 +214,7 @@ public class MainActivity extends AppCompatActivity {
         StringBuilder sb = new StringBuilder();
         for (int i = 0; i < bytes.length; ++i) {
             if (i > 0) {
-                sb.append(" ");
+                sb.append("");
             }
             int b = bytes[i] & 0xff;
             if (b < 0x10)
@@ -236,7 +238,7 @@ public class MainActivity extends AppCompatActivity {
     private long toRevDec(byte[] bytes) {
         long result = 0;
         long factor = 1;
-        for (int i = bytes.length; i >= 0; --i) {
+        for (int i = bytes.length - 1; i >= 0; --i) {
             long value = bytes[i] & 0xffl;
             result += value * factor;
             factor *= 256l;
